@@ -1,0 +1,9 @@
+prefect
+mlflow
+tensorflow
+yfinance
+scikit-learn
+pandas
+numpy
+joblib
+matplotlib
