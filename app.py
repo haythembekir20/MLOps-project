@@ -13,7 +13,7 @@ app = Flask(__name__)
 LOOK_BACK = 60
 
 # Load pre-trained model from MLflow
-MLFLOW_MODEL_URI = "models:/BitcoinPricePredictor/1"  # Update with your model name and version
+MLFLOW_MODEL_URI = "models:/BitcoinPricePredictor/latest"  # Always fetch the latest version
 model = mlflow.keras.load_model(MLFLOW_MODEL_URI)
 
 # Load scaler from MLflow artifacts
