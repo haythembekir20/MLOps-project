@@ -1,35 +1,32 @@
-version: '3.8'
-
+version: "3.8"
 services:
-  prefect-server:
-    build: .
-    container_name: prefect-server
+  flask_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flask_app
     ports:
-      - "4200:4200"  # Prefect UI
+      - "5005:5005"  # Expose Flask app on port 5005
     environment:
-      - PREFECT_API_URL=http://127.0.0.1:4200
-    command: ["prefect", "server", "start"]
+      - MLFLOW_TRACKING_URI=http://mlflow:5000  # Use the mlflow service hostname
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - ./app:/app  # Mount the app directory (adjust path as necessary)
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.18.0  # Use the specific version or latest
+    image: ghcr.io/mlflow/mlflow:v2.18.0  # Official MLflow Docker image
     container_name: mlflow
     ports:
-      - "5001:5000"  # MLflow UI
+      - "5000:5000"  # Expose MLflow on port 5000
     environment:
-      MLFLOW_TRACKING_URI: "http://127.0.0.1:5001"
-      MLFLOW_BACKEND_STORE_URI: "sqlite:///mlflow.db"
-      MLFLOW_ARTIFACT_ROOT: "/mlflow/artifacts"
+      - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts  # Set artifact root
+      - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow.db  # Use SQLite for backend
     volumes:
-      - ./mlflow/artifacts:/mlflow/artifacts
-      - ./mlflow.db:/mlflow.db
-
-  training-script:
-    build: .
-    container_name: training-script
-    depends_on:
-      - prefect-server
-      - mlflow
-    environment:
-      PREFECT_API_URL: "http://127.0.0.1:4200"
-      MLFLOW_TRACKING_URI: "http://127.0.0.1:5001"
-    command: ["python", "generate_model_prefect.py"]
+      - ./mlruns:/mlflow/artifacts  # Mount for MLflow artifacts
+      - ./mlflow.db:/mlflow/mlflow.db  # Mount for SQLite database
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      retries: 5

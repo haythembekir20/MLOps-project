@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, render_template
+import subprocess
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -11,6 +12,8 @@ app = Flask(__name__)
 
 # Constants
 LOOK_BACK = 60
+
+mlflow.set_tracking_uri("http://127.0.0.1:5001")
 
 # Load pre-trained model from MLflow
 MLFLOW_MODEL_URI = "models:/BitcoinPricePredictor/latest"  # Always fetch the latest version
@@ -53,7 +56,6 @@ def predict_next_7_days(model, data):
 
     return predictions
 
-# API Endpoints
 @app.route("/")
 def home():
     return "Welcome to the Bitcoin Price Prediction API!"
@@ -84,6 +86,18 @@ def chart():
 
         return render_template("chart.html", dates=dates, prices=prices)
     except Exception as e:
+        return jsonify({"error": str(e)})
+
+@app.route("/generate", methods=["GET"])
+def generate_model():
+    """
+    Endpoint to trigger the model generation pipeline.
+    """
+    try:
+        # Run the model generation script as a subprocess
+        subprocess.run(["python", "generate_model.py"], check=True)
+        return jsonify({"status": "Model generation pipeline executed successfully!"})
+    except subprocess.CalledProcessError as e:
         return jsonify({"error": str(e)})
 
 # Run the Flask app
