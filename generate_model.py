@@ -43,6 +43,12 @@ def fetch_live_bitcoin_data(period="1y", interval="1d"):
         data.to_csv(file_path, index=False)
         mlflow.log_artifact(file_path)
 
+        # Log details in MLflow
+        mlflow.log_param("data_period", period)
+        mlflow.log_param("data_interval", interval)
+        mlflow.log_metric("data_rows", len(data))
+        mlflow.log_metric("data_columns", len(data.columns))
+
         logging.info("Fetched and logged Bitcoin data successfully.")
         return data.to_dict()
     except Exception as e:
@@ -73,6 +79,11 @@ def preprocess_data(data, look_back=LOOK_BACK):
         joblib.dump((X, y, scaler), file_path)
         mlflow.log_artifact(file_path)
 
+        # Log details in MLflow
+        mlflow.log_param("look_back", look_back)
+        mlflow.log_metric("training_samples", len(X))
+        mlflow.log_metric("training_features", features.shape[1])
+
         logging.info("Data preprocessing completed successfully.")
         return np.array(X), np.array(y), scaler
     except Exception as e:
@@ -95,6 +106,14 @@ def build_lstm_model(input_shape):
             Dense(1)
         ])
         model.compile(optimizer="adam", loss="mean_squared_error")
+        
+        # Log details in MLflow
+        mlflow.log_param("lstm_units", 100)
+        mlflow.log_param("dropout_rate", 0.2)
+        mlflow.log_param("dense_units", 50)
+        mlflow.log_param("optimizer", "adam")
+        mlflow.log_param("loss_function", "mean_squared_error")
+
         logging.info("LSTM model built successfully.")
         return model
     except Exception as e:
@@ -113,11 +132,6 @@ def train_model(data, model):
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
 
-        # Log parameters
-        mlflow.log_param("look_back", LOOK_BACK)
-        mlflow.log_param("epochs", EPOCHS)
-        mlflow.log_param("batch_size", BATCH_SIZE)
-
         # Train the model
         history = model.fit(
             X_train, y_train,
@@ -131,9 +145,19 @@ def train_model(data, model):
         mae = mean_absolute_error(y_test, predicted_test)
         rmse = np.sqrt(mean_squared_error(y_test, predicted_test))
 
-        # Log metrics
+          # Calculate custom accuracy
+        mean_actual = np.mean(y_test)
+        accuracy = (1 - (mae / mean_actual)) * 100  # Accuracy as a percentage
+
+        # Log details in MLflow
         mlflow.log_metric("mae", mae)
         mlflow.log_metric("rmse", rmse)
+        mlflow.log_metric("accuracy", accuracy)  # Log accuracy
+        mlflow.log_param("epochs", EPOCHS)
+
+        mlflow.log_metric("training_data_split_ratio", 0.8)
+        mlflow.log_param("batch_size", BATCH_SIZE)
+        mlflow.log_metric("validation_loss", history.history['val_loss'][-1])
 
         # Log the model
         mlflow.keras.log_model(model, "model", registered_model_name=REGISTERED_MODEL_NAME)
@@ -149,6 +173,9 @@ def train_model(data, model):
 def bitcoin_price_prediction_pipeline():
     """
     Prefect flow for orchestrating the Bitcoin price prediction pipeline.
+
+    This flow includes fetching data, preprocessing it, building an LSTM model,
+    training the model, and logging results to MLflow.
     """
     try:
         # Start a single MLflow run for the entire pipeline
@@ -157,6 +184,9 @@ def bitcoin_price_prediction_pipeline():
             processed_data = preprocess_data(raw_data)
             model = build_lstm_model(input_shape=(LOOK_BACK, 3))
             train_model(processed_data, model)
+
+            # Additional pipeline-level metrics
+            mlflow.log_param("total_pipeline_steps", 4)
             logging.info("Pipeline executed successfully.")
     except Exception as e:
         logging.error(f"Pipeline execution failed: {e}")

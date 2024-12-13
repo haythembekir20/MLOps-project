@@ -99,6 +99,37 @@ def generate_model():
         return jsonify({"status": "Model generation pipeline executed successfully!"})
     except subprocess.CalledProcessError as e:
         return jsonify({"error": str(e)})
+@app.route("/predict_version", methods=["GET"])
+def predict_version():
+    """
+    Predict using a specific version of the Bitcoin price prediction model.
+    """
+    try:
+        # Get version from query parameters
+        version = request.args.get("version")
+        if not version:
+            return jsonify({"error": "Model version is required!"}), 400
+        
+        # Load the specified version of the model from MLflow
+        specific_model_uri = f"models:/BitcoinPricePredictor/{version}"
+        specific_model = mlflow.keras.load_model(specific_model_uri)
+        
+        # Use the same scaler (already loaded) or load a version-specific scaler
+        # For this implementation, assuming scaler compatibility
+
+        # Fetch and preprocess live Bitcoin data
+        period = request.args.get("period", "1y")
+        interval = request.args.get("interval", "1d")
+        bitcoin_data = fetch_live_bitcoin_data(period=period, interval=interval)
+        bitcoin_data = preprocess_data(bitcoin_data)
+
+        # Make predictions using the specific model
+        predictions = predict_next_7_days(specific_model, bitcoin_data)
+        return jsonify({"version": version, "predictions": predictions})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # Run the Flask app
 if __name__ == "__main__":

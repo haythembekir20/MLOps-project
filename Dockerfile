@@ -13,11 +13,15 @@ COPY app.py /app/
 COPY generate_model.py /app/
 COPY templates /app/templates
 
-# Install Python dependencies
-RUN pip install --no-cache-dir prefect flask pandas numpy yfinance scikit-learn tensorflow mlflow joblib
+# Install Python dependencies and Cron
+RUN apt-get update && apt-get install -y cron && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Expose Flask app's port
-EXPOSE 5005
+# Add a cron job to run the script every 24 hours
+RUN echo "0 0 * * * python /app/generate_model.py >> /var/log/cron.log 2>&1" > /etc/cron.d/generate_model && \
+    chmod 0644 /etc/cron.d/generate_model && \
+    crontab /etc/cron.d/generate_model
 
-# Default command to start Flask app
-CMD ["python", "app.py"]
+# Start Cron and Flask
+CMD ["sh", "-c", "cron && python app.py"]
